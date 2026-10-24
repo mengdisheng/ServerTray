@@ -1,0 +1,11 @@
+{
+  "target": "Linux x86_64, unprivileged SSH account",
+  "iterations": 20,
+  "collector_command_bytes": 332,
+  "mean_cpu_ms": 15.5,
+  "p95_cpu_ms": 20.0,
+  "peak_rss_mib": 1.75,
+  "maximum_output_bytes": 3332,
+  "p95_including_network_ms": 1827.9999999995198,
+  "equivalent_single_core_percent_at_15_seconds": 0.10333333333333333
+}

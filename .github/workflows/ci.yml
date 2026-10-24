@@ -1,0 +1,43 @@
+name: build-and-test
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build, test, scan and package
+        shell: pwsh
+        run: ./tools/build.ps1
+      - name: Vulnerable dependency check
+        shell: pwsh
+        run: |
+          $raw = dotnet list src/ServerTray.App package --vulnerable --include-transitive --format json
+          if ($LASTEXITCODE) { throw 'Dependency audit unavailable or failed' }
+          $report = $raw | ConvertFrom-Json
+          if ($report.problems -or $report.errors) { throw 'Dependency audit did not complete' }
+          foreach ($project in $report.projects) { foreach ($framework in $project.frameworks) { if ($framework.topLevelPackages -or $framework.transitivePackages) { throw 'Vulnerable dependency detected' } } }
+      - name: Start loopback SSH fixture
+        shell: pwsh
+        run: |
+          python -m pip install -r tools/requirements-test.txt
+          New-Item -ItemType Directory -Force artifacts/fixtures
+          Start-Process python -ArgumentList 'tools/ssh_fixture.py --receipt artifacts/fixtures/ssh.json --client-key artifacts/fixtures/client-key.pem' -WindowStyle Hidden
+          for ($i=0; $i -lt 20 -and -not (Test-Path artifacts/fixtures/ssh.json); $i++) { Start-Sleep -Milliseconds 500 }
+      - name: Real SSH protocol tests
+        run: dotnet run --project tools/ServerTray.Bench -c Release --no-restore -- --receipt artifacts/fixtures/ssh.json --self-test --private-key artifacts/fixtures/client-key.pem
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ServerTray-windows-candidate
+          path: artifacts/release/
+          retention-days: 7

@@ -1,0 +1,16 @@
+{
+  "mode": "encrypted-ssh-tcp-payload",
+  "complete": true,
+  "intervalSeconds": 15,
+  "rounds": [
+    1456,
+    1424,
+    1360,
+    1424,
+    1456
+  ],
+  "maxBytesPerRound": 1456,
+  "handshakeExcluded": true,
+  "includesKeepAlive": true,
+  "passed": true
+}

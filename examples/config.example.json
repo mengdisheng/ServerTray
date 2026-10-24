@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "monitoring": {
+    "intervalSeconds": 15,
+    "timeoutSeconds": 10,
+    "maxConcurrency": 4,
+    "retentionDays": 7,
+    "includeInterfaces": [],
+    "excludeInterfaces": ["lo", "docker*", "veth*", "br-*", "virbr*", "tun*", "wg*"]
+  },
+  "alerts": {
+    "offline": true, "resources": true, "expiry": true,
+    "cpuHigh": 85, "memoryHigh": 90, "diskHigh": 90,
+    "hysteresis": 5, "highSeconds": 120, "recoverySeconds": 60
+  },
+  "theme": "System", "timeZoneId": "Local", "autoStart": false,
+  "defaultServerId": "demo-web", "traySummary": "Fleet",
+  "visibleMetrics": ["cpu", "memory", "disk", "network", "io", "swap", "load"],
+  "servers": [
+    {
+      "id": "demo-web", "name": "Example web server", "host": "web.example.invalid",
+      "port": 22, "username": "monitor", "authentication": "PrivateKey",
+      "group": "Production", "tags": ["web"], "enabled": false, "order": 0,
+      "jumpServerId": null, "intervalSeconds": null, "timeoutSeconds": null,
+      "includeInterfaces": null, "excludeInterfaces": null, "alerts": null, "expiresOn": null
+    }
+  ]
+}
