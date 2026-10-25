@@ -10,7 +10,7 @@ try {
         & $DotNet test ServerTray.sln -c Release --no-restore --logger 'trx'
         if ($LASTEXITCODE) { throw 'Tests failed' }
     }
-    python tools/scan_public.py
+    python tools/scan_public.py --history
     if ($LASTEXITCODE) { throw 'Source scan failed' }
     $publish = Join-Path $projectRoot 'artifacts/release/ServerTray-win-x64'
     $resolvedPublish = [IO.Path]::GetFullPath($publish)
@@ -21,7 +21,7 @@ try {
     if ($LASTEXITCODE) { throw 'Publish failed' }
     python tools/collect_notices.py --publish $publish
     if ($LASTEXITCODE) { throw 'Dependency notices failed' }
-    Copy-Item -LiteralPath 'LICENSE','README.md','README.en.md','SECURITY.md' -Destination $publish -Force
+    Copy-Item -LiteralPath 'LICENSE','README.md','README.zh-CN.md','SECURITY.md','CONTRIBUTING.md','CHANGELOG.md' -Destination $publish -Force
     Copy-Item -LiteralPath 'docs','examples' -Destination $publish -Recurse -Force
     $unsafeFiles = Get-ChildItem -LiteralPath $publish -Recurse -File | Where-Object { $_.Name -in @('config.json','credentials.json','known-hosts.json','alert-state.json') -or $_.Extension -in @('.db','.sqlite','.pem','.key','.pfx','.log') }
     if ($unsafeFiles) { throw 'Private-data files detected in publish directory' }

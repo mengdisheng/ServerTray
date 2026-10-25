@@ -1,116 +1,125 @@
-# 性能与验证记录
+# Performance and validation
 
-状态：**0.1.0-preview，正式发布验收未完成**。本报告不把短时测试替代 8 小时耐久测试，也不把回环 SSH 夹具等同于 20 台独立 Linux 实机。
+[Back to README](../README.md) · [简体中文](PERFORMANCE.zh-CN.md)
 
-## 环境与口径
+**Status: 0.1.0-preview; stable-release acceptance is incomplete.** Short tests do not establish eight-hour stability, and 20 loopback SSH connections do not represent 20 independent Linux hosts across a WAN.
 
-- 日期：2026-10-24。
-- Windows 11 专业版 x64，系统构建 26300；Intel Core i5-14600KF，20 个逻辑处理器，31.8 GiB RAM；Samsung 990 EVO Plus SSD。
-- 显示环境包含 NVIDIA RTX 5070 与 GameViewer 虚拟显示适配器。当前版本采用 WPF 按需软件绘制及图表位图，避免托盘进程加载大型 GPU 驱动。
-- .NET SDK 10.0.402，绿色版自带 .NET 10.0.13。使用 Release、win-x64、自包含、ReadyToRun 发布。
-- SSH 协议夹具为 Paramiko 5.1.0，只监听回环地址。每台配置创建独立 SSH 长连接，采样间隔 15 秒，并发上限 4。
-- CPU 百分比按 **单个逻辑核心**归一化：进程 CPU 时间增量 / 墙钟时间增量 × 100；没有再除以 20。
-- 内存报告 Windows Private Bytes / 2²⁰（MiB），不是 Working Set。所有内存峰值包含预热阶段。短测预热 60 秒，8 小时测试预热 30 分钟。
-- 每 5 秒记录 CPU、内存、句柄、线程、在线数量、实际 SSH 连接数、主机采集耗时 P95、调度延迟 P95、样本年龄 P95、绘图次数。JSON 每 30 秒原子更新。
-- 采集耗时包括本轮必要的连接/静态信息及数据读取；样本年龄含采样周期、错峰和采集耗时，不是网络 RTT。
-- 启动时间从 Windows 进程创建时间计算到 WPF 首屏 ContentRendered；仍需结合界面交互检查。隐藏启动不产生主窗口启动时间。
+## Environment and definitions
 
-## 已完成的基线测试
+Measurements were recorded on 2026-10-24:
 
-下表为开发过程中完成的绿色版测量，最终候选二进制复测另行记录，不混用构建身份。
+- Windows 11 Pro x64, build 26300; Intel Core i5-14600KF, 20 logical processors, 31.8 GiB RAM; Samsung 990 EVO Plus SSD.
+- Display environment: NVIDIA RTX 5070 and a GameViewer virtual display adapter. The candidate uses WPF software composition and rasterized charts to avoid loading a large graphics driver into the tray process.
+- .NET SDK 10.0.402; self-contained .NET 10.0.13 runtime; Release, win-x64, ReadyToRun publish.
+- Paramiko 5.1.0 loopback-only SSH fixture. Each configured server establishes an independent persistent encrypted connection. Sampling is 15 seconds, with at most four collectors.
+- CPU is `process CPU-time delta / wall-time delta × 100`, expressed as a percentage of **one logical core**, without dividing by the number of processors.
+- Memory is Windows Private Bytes divided by 2²⁰ (MiB), not working set. Peaks include warmup. Short tests warm up for 60 seconds; the eight-hour procedure warms up for 30 minutes.
+- Samples every five seconds record CPU, private memory, handles, threads, online hosts, SSH connections, collection-duration P95, scheduling-delay P95, sample-age P95 and draw count. JSON reports are atomically updated every 30 seconds.
+- Collection duration includes connection/static-info work when due. Sample age includes the sampling interval and staggered scheduling; it is not network RTT. Summary P95 values in `measurements/summary.json` are percentiles of periodic P95 snapshots, not a pooled percentile of every collection.
+- Startup timing runs from process creation to WPF `ContentRendered`; interaction is checked separately. A minimized process does not produce a main-window startup measurement.
 
-| 场景 | 时长 | 稳态单核 CPU | 峰值私有内存 |
+## Final preview measurements
+
+The distributed executable was measured for 181 seconds per scenario, using separate processes and data directories. No UI Automation probing was attached during these tests. An additional soak ran concurrently; it did not complete the required eight hours. Binary SHA256 values, raw five-second series and summaries are in [measurements/summary.json](measurements/summary.json) and its neighboring files.
+
+| Scenario | Steady average CPU, one core | Peak private memory | SSH connections at completion |
 |---|---:|---:|---:|
-| 1 台，托盘 | 181 秒 | 0.50% | 50.3 MiB |
-| 5 台，托盘 | 181 秒 | 0.54% | 54.0 MiB |
-| 20 台，托盘 | 301 秒 | 0.35% | 65.5 MiB |
-| 20 台，7 天密集图表，GPU 版本对照 | 241 秒 | 0.81% | 123.4 MiB |
+| 1 host, tray | 0.40% | 60.0 MiB | 1 |
+| 5 hosts, tray | 0.59% | 63.8 MiB | 5 |
+| 20 hosts, tray | 0.60% | 69.1 MiB | 20 |
+| 20 hosts, dashboard and dense 7-day chart | 0.71% | 87.4 MiB | 20 |
 
-7 天图表数据库预置 20 × 10080 条虚构分钟记录，查询每条曲线约 1008 点。自动化界面探测曾使 UI Automation 线程增加约 20～30% 单核 CPU；该轮结果保留为诊断失败案例，不计作正常运行测量。随后采用启动参数直接选择 7 天范围、不附加界面自动化，重复进行对照测试。
+The final preview's repeated main-window launch measured **773 ms**. It followed earlier UI checks and is not a Windows-reboot/cache-cold launch. The software-rendering version's first-run baseline was **1.42 seconds**. An earlier GPU-composed build took approximately 3.2 seconds on first launch and 0.7 seconds when warm, which motivated the rendering change.
 
-软件绘制候选首次启动已测得 1.42 秒；之前 GPU 版本首次启动约 3.2 秒、热启动约 0.7 秒，因此没有使用热启动数字掩盖首次启动成本。最终候选结果及摘要见本文件后续记录与 `measurements/`。
+For the chart workload, SQLite was seeded with 20 × 10,080 synthetic minute records. Each seven-day curve returned approximately 1,008 points. UI Automation probing itself previously added roughly 20–30% of a single core. That diagnostic run was excluded from ordinary performance claims; repeat measurements selected the chart range through a launch option without attaching a probe.
 
-## 最终候选二进制复测
+## Development baselines
 
-以下为实际交付二进制、每项 181 秒的完成记录。1/5/20 台托盘测试使用独立进程和数据目录；最终八小时任务同时运行。测量过程中没有向这些进程附加 UI Automation。二进制 SHA256、每 5 秒时间序列及派生摘要保存在 [measurements/summary.json](measurements/summary.json) 与同目录文件。
+These earlier builds are retained as context; they are not substituted for final-binary acceptance:
 
-| 场景 | 稳态单核 CPU | 峰值私有内存 | 完成时 SSH 连接数 |
+| Scenario | Duration | Steady average CPU | Peak private memory |
 |---|---:|---:|---:|
-| 1 台托盘 | 0.40% | 60.0 MiB | 1 |
-| 5 台托盘 | 0.59% | 63.8 MiB | 5 |
-| 20 台托盘 | 0.60% | 69.1 MiB | 20 |
-| 20 台总览及 7 天图表 | 0.71% | 87.4 MiB | 20 |
+| 1 host, tray | 181 s | 0.50% | 50.3 MiB |
+| 5 hosts, tray | 181 s | 0.54% | 54.0 MiB |
+| 20 hosts, tray | 301 s | 0.35% | 65.5 MiB |
+| 20 hosts, dense 7-day chart, GPU comparison | 241 s | 0.81% | 123.4 MiB |
 
-最终候选该轮主窗口启动 773 ms；这是经过先前界面验证后的再次启动，不能解释为重启 Windows 后清空文件缓存的冷启动。软件绘制版本首次运行的 1.42 秒结果保留作补充。
+A 361-second all-disconnect/recovery baseline used software rendering before the final theme adjustment. The proxy disconnected at 60 seconds and returned at 150 seconds. Online hosts fell from 20 to zero, reached 16 around 175 seconds and then returned to all 20. Whole-run average CPU was 0.56% of one core; peak private memory was 71.1 MiB. Backoff avoided reconnecting every second.
 
-20 台断线/恢复软件绘制基线运行 361 秒：第 60 秒切断代理，第 150 秒恢复；在线数量从 20 降至 0，恢复后约第 175 秒已有 16 台在线，随后全部 20 台在线。整轮平均 CPU 0.56% 单核、私有内存峰值 71.1 MiB；退避期间不会每秒重新建立连接。此项在最终主题调整前完成，没有冒称为最终二进制八小时测试。
+The attempted final-binary eight-hour run was interrupted before eight hours. Its local report remains `complete: false`; no eight-hour pass is claimed. The checked-in summary retains an explicitly incomplete progress snapshot. Local generated reports under `artifacts/` are not published as application data.
 
-最终八小时测试已启动，交付时尚未跑满。源仓库内只保存注明未完成的进度快照；本地实时报告在 `artifacts/bench/final-soak-8h.json`。切勿因为文件已经存在而判为通过。
+## Remote collection and transport
 
-## 远端与传输
+The fixed collector ran 20 times as an ordinary user on one Linux host, including root filesystem reads. No component was installed, no file was uploaded and sudo was not used. Only an anonymous aggregate is published.
 
-使用普通用户在一台 Linux 上直接执行固定采集脚本 20 次，包含根盘空间读取；未安装组件、上传文件或使用 sudo。这里只公开匿名汇总，不公开目标身份。
-
-| 指标 | 实测 |
+| Metric | Measurement |
 |---|---:|
-| 单轮命令长度 | 332 字节 |
-| 平均远端 CPU 时间 / P95 | 15.5 ms / 20 ms |
-| 折算 15 秒周期平均单核占用 | 0.1033% |
-| 峰值 RSS | 1.75 MiB |
-| 最大原始输出 | 3332 字节 |
-| 含网络的完成耗时 P95 | 1828 ms |
+| Command length | 332 bytes |
+| Mean remote CPU time / P95 | 15.5 ms / 20 ms |
+| Mean single-core utilization at a 15-second interval | 0.1033% |
+| Peak RSS | 1.75 MiB |
+| Maximum raw output | 3,332 bytes |
+| Completion duration including network, P95 | 1,828 ms |
 
-另以回环 TCP 代理计数 SSH **加密后的双向 TCP 负载**，排除初始握手，连续 5 轮、15 秒周期，并包含期间保活：1456、1424、1360、1424、1456 字节，最大 1456 字节，小于 16 KiB。该数字不含 IP/TCP 头、重传及以太网开销，也不代表所有 Linux 的 `/proc` 输出规模。真实目标的大量网卡/块设备会增加输出；超过 64 KiB 将停止该轮采集。
+A loopback TCP proxy measured **encrypted bidirectional TCP payload**, excluding the initial handshake, over five 15-second rounds with keepalives included: 1,456, 1,424, 1,360, 1,424 and 1,456 bytes. The maximum was below 16 KiB. IP/TCP headers, retransmissions and link-layer overhead are not included. This does not bound every host's `/proc` output: large interface/device sets produce more data, and command output above 64 KiB stops that collection.
 
-## 发布门槛与未完成项
+## Release gates
 
-| 门槛 | 当前结论 |
+| Requirement | Evidence / remaining work |
 |---|---|
-| 20 台托盘平均 CPU ≤2% 单核、私有内存 ≤120 MiB | 最终包短测通过，0.60% / 69.1 MiB |
-| 总览及历史私有内存 ≤200 MiB | 最终包短测通过，87.4 MiB |
-| 连续 8 小时，预热后增长 ≤15 MiB，无持续增长 | **待完成**；早期构建的约 20 分钟记录不足以验收 |
-| SSD 主窗口 2 秒内可交互 | 软件绘制首运行基线 1.42 秒；最终包再次启动 0.773 秒；界面交互已检查 |
-| 远端平均 CPU ≤0.5% 单核 | 上述单台 Linux 样本通过；并非所有发行版/硬件证明 |
-| 每轮收发 ≤16 KiB | 回环加密负载通过；真实网络包级流量仍需独立验证 |
-| 20 台慢连接、全部断线与恢复 | 单台慢命令协议超时通过；20 台全部断线/恢复基线通过；20 台高延迟 WAN 实机仍待验证 |
-| 多显示器、高 DPI、真实 Windows 休眠恢复 | 已声明 PerMonitorV2；状态机恢复有单元测试；**实机验收待完成** |
-| Windows 桌面通知点击 | 已实现；通知中心/专注模式/旧通知激活的实机验收待完成 |
+| 20 hosts, tray CPU ≤2% of one core; private memory ≤120 MiB | Final preview short test: 0.60%, 69.1 MiB. |
+| Dashboard/history private memory ≤200 MiB | Final preview short test: 87.4 MiB. |
+| Eight hours, post-warmup private-memory growth ≤15 MiB and no sustained growth | **Pending.** The interrupted run is insufficient. |
+| SSD main window interactive within two seconds | Software first-run baseline 1.42 s; final repeated launch 0.773 s; basic interaction checked. Broader cold-start validation remains advisable. |
+| Remote collection CPU ≤0.5% of one core | Passed for the single Linux sample above, not every distribution/hardware combination. |
+| Per-round bidirectional traffic ≤16 KiB | Loopback encrypted payload passed; real packet-level overhead and target variation need separate validation. |
+| 20 slow hosts, all disconnected, recovery | Single-command timeout protocol check passed; 20-host outage/recovery baseline passed; high-latency 20-host WAN validation **pending**. |
+| Multi-monitor, high DPI, real sleep/resume | PerMonitorV2 declared; resume state-machine tests passed; physical acceptance **pending**. |
+| Windows notification activation | Implemented; notification center, focus settings and old-notification activation acceptance **pending**. |
 
-未完成或失败项目必须完成/修复后，才能将候选包标记为正式发布。不能将此报告解释为“所有门槛已通过”。
+Incomplete or failed gates must be completed or fixed before a stable release. A preview tag is not a claim that every gate has passed.
 
-## 功能验证
+## Functional verification
 
-33 项自动化核心测试通过，覆盖配置默认值与未来版本拒绝、原子备份、导入差异、计数回退/重启/网卡变化、迟到样本、分钟汇总/历史断点、告警持续时间与去重、资源独立开关、离线到期提醒、调度并发、认证失败停止重试、取消和唤醒宽限。
+- **33 core tests** passed: configuration defaults/future-schema refusal, atomic backups, import differences, reboot/rollback/interface changes, late samples, minute history/gaps, alert durations/deduplication, independent resource switches, expiry while offline, concurrency, authentication retry blocking, cancellation and resume grace.
+- **4 Windows tests** passed: DPAPI encryption/decryption/removal, host trust separated by address/port, and Chinese resource embedding.
+- **8 real SSH protocol checks** passed: password and encrypted-key authentication, unknown/changed host keys, authentication failure, output caps, command timeout, one jump and connection reuse.
+- Main window, light/dark themes and seven-day curves were visually checked. Closing the final preview window kept its process alive. Relaunching with the same data directory exited the second process and restored the first window.
 
-4 项 Windows 测试通过，验证 DPAPI 密文不含明文、解密与删除、主机指纹按地址/端口区分、中文资源嵌入。8 项真实 SSH 协议检查通过，验证密码、加密私钥、未知/变更主机密钥、认证失败、输出上限、命令超时、单级跳板和连接复用。主窗口、明暗主题和七天曲线已通过界面检查。最终包确认关闭主窗口后进程继续运行；相同数据目录再次启动时第二进程退出并唤回已有窗口。更多硬件场景仍列在待验收项中。
+Windows CI restores locked packages, builds/tests, scans source/history, audits vulnerable dependencies, runs SSH fixture checks and creates notices and portable ZIPs. An unavailable vulnerability database is a failed audit, not a pass. Local results above do not preempt the actual hosted CI result.
 
-CI 在 Windows 执行锁定依赖还原、构建、测试、敏感信息扫描、依赖漏洞检查、SSH 协议测试、第三方声明和 ZIP 生成。离线漏洞数据库不可用不能算通过。
+## Reproduce
 
-## 复现
+Build on Windows with the SDK in `global.json` and Python 3.10+:
 
 ```powershell
 ./tools/build.ps1
 python -m pip install -r tools/requirements-test.txt
 New-Item -ItemType Directory -Force artifacts/fixtures
-python tools/ssh_fixture.py --receipt artifacts/fixtures/ssh.json
-# 另一个终端
-dotnet run --project tools/ServerTray.Bench -c Release -- --receipt artifacts/fixtures/ssh.json --self-test
+python tools/ssh_fixture.py --receipt artifacts/fixtures/ssh.json --client-key artifacts/fixtures/client-key.pem
+```
+
+Leave that terminal running. In another terminal at the repository root:
+
+```powershell
+dotnet run --project tools/ServerTray.Bench -c Release -- --receipt artifacts/fixtures/ssh.json --self-test --private-key artifacts/fixtures/client-key.pem
 ./tools/benchmark.ps1 -Servers 1 -Seconds 180
+# Wait for each run to finish before starting the next.
 ./tools/benchmark.ps1 -Servers 5 -Seconds 180
 ./tools/benchmark.ps1 -Servers 20 -Seconds 300
 ./tools/benchmark.ps1 -Servers 20 -Seconds 28800
 ```
 
-八小时报告必须 `complete: true`、`activeCoverage >= 0.98`。记录不足、休眠造成覆盖率不足、进程提前结束均不通过。报告附峰值、预热后首尾差值及原始时间序列；首尾差值通过后仍需检查持续增长趋势。不要在性能测量过程中附加 UI Automation 探测器或诊断器。
+For the complete matrix, repeat with `-Visible` and an appropriate chart workload. Do not attach UI Automation or a diagnostic probe during measurements. Keep the Windows host awake. The eight-hour report requires `complete: true`, `activeCoverage >= 0.98`, a full 28,800-second duration and review of the post-warmup series. Compare growth after warmup and inspect the trend; a favorable endpoint difference alone does not establish stability. Early exit, insufficient records or sleep-induced coverage loss is not a pass.
 
-传输及故障测试：
+Transport/outage checks:
 
 ```powershell
 python tools/transport_probe.py --fixture artifacts/fixtures/ssh.json --receipt artifacts/fixtures/proxy.json --control artifacts/fixtures/control.json
-# 保持只有待测客户端通过此代理
+# Use another terminal; only the client under test should use this proxy.
 dotnet run --project tools/ServerTray.Bench -c Release -- --receipt artifacts/fixtures/proxy.json --wire-check
 ./tools/benchmark.ps1 -Receipt artifacts/fixtures/proxy.json -Servers 20 -Seconds 360
 ./tools/outage.ps1 -AfterSeconds 60 -OfflineSeconds 90
 ```
 
-首次握手需先预热；代理只保存字节计数，不保存 SSH 数据。对生产地址做流量抓包或性能检查，应由部署者在自己的环境中执行。
+Warm up SSH before counting steady traffic. The proxy stores byte counts, not SSH contents. Test fixtures bind only to loopback and use synthetic credentials. Keep generated keys and reports in the ignored `artifacts/` folder. Real deployments should reproduce network and fleet measurements in their own environment without publishing target identities.

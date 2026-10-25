@@ -1,6 +1,8 @@
 # Contributing
 
-Use the .NET SDK in `global.json`. Run `dotnet test -c Release`, `python tools/scan_public.py`, and `git diff --check` before sending a change. Windows application tests require Windows; the core is separate from WPF.
+Use the .NET SDK in `global.json`. Run `dotnet test -c Release`, `python tools/scan_public.py --history`, and `git diff --check` before sending a change. Windows application tests require Windows; the core is separate from WPF. See [architecture](docs/ARCHITECTURE.md) for module boundaries and [performance](docs/PERFORMANCE.md) for the SSH fixture and benchmark commands.
+
+English is the default language for documentation, issue descriptions and pull requests. The UI currently uses Simplified Chinese. Update the English documentation first when behavior changes, and keep existing translations consistent where possible.
 
 Keep remote collection fixed, read-only and bounded. Do not interpolate user input into shell code. New data sources should implement `IMonitorSource` without moving scheduling or alert rules into the UI. Avoid independent connection loops, per-frame graph animations and unbounded producer queues.
 

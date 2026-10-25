@@ -9,6 +9,10 @@ ServerTray is a read-only SSH monitor. Use it only for systems you are authorize
 - SSH output, configuration size, concurrency, retries, logs, chart points and retained events are bounded. Untrusted command output is parsed as data, never executed locally.
 - The executable makes outbound SSH connections to configured hosts. It has no product telemetry or public inbound listener. The optional development SSH fixture binds only to loopback.
 
-Do not include private configurations, credentials, databases, logs or dump files in issues. Before sending diagnostics, replace identifiers and review the contents. Report suspected vulnerabilities privately to the repository maintainer when a public hosting location is established; do not post exploit credentials publicly.
+Do not include private configurations, credentials, databases, logs or dump files in issues. Before sending diagnostics, replace identifiers and review the contents. Report suspected vulnerabilities using [GitHub private vulnerability reporting](https://github.com/mengdisheng/ServerTray/security/advisories/new). Do not post exploit credentials in public issues. If the private reporting form is unavailable, open a minimal issue asking for a private contact channel without disclosing vulnerability details.
+
+## Supported versions
+
+The latest `0.1.0-preview` is the only maintained version. It is a preview, not a stable release. Security fixes will be provided on the default branch and in subsequent preview packages. Review [the performance report](docs/PERFORMANCE.md) for pending release checks.
 
 Dependencies are version-locked. Portable packages include their dependency notices and SBOM. Run dependency vulnerability checks and the repository scanner before publishing. Future unsupported schema versions are rejected rather than silently downgraded.
